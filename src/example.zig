@@ -23,25 +23,23 @@ fn initTclStubs(interp: *tcl.Tcl_Interp, version: [:0]const u8, exact: bool) err
 fn helloCmd(_: ?*anyopaque, interp: ?*tcl.Tcl_Interp, objc: c_int, objv: [*c]const [*c]tcl.Tcl_Obj) callconv(.c) c_int {
     const count: u32 = @intCast(objc);
     const args: []const *tcl.Tcl_Obj = @ptrCast(objv[0..count]);
-    helloCmdInner(args) catch |err| switch (err) {
+    const result = helloCmdInner(args) catch |err| switch (err) {
         error.TooManyArgs => {
             tcl.tclStubsPtr.*.tcl_WrongNumArgs.?(interp, 1, objv, "?subject?");
             return tcl.TCL_ERROR;
         },
     };
+    tcl.tclStubsPtr.*.tcl_SetObjResult.?(interp, result);
     return tcl.TCL_OK;
 }
 
-fn helloCmdInner(args: []const *tcl.Tcl_Obj) error{TooManyArgs}!void {
-    const subject: []const u8 = switch (args.len) {
-        1 => "World",
-        2 => str: {
-            var c_len: tcl.Tcl_Size = undefined;
-            const c_str = tcl.tclStubsPtr.*.tcl_GetStringFromObj.?(args[1], &c_len);
-            const len: u32 = @intCast(c_len);
-            break :str c_str[0..len];
+fn helloCmdInner(args: []const *tcl.Tcl_Obj) error{TooManyArgs}!*tcl.Tcl_Obj {
+    return switch (args.len) {
+        1 => tcl.tclStubsPtr.*.tcl_NewStringObj.?("Hello, World!", -1),
+        2 => obj: {
+            const subject = tcl.tclStubsPtr.*.tcl_GetStringFromObj.?(args[1], null);
+            break :obj tcl.tclStubsPtr.*.tcl_ObjPrintf.?("Hello, %s!", subject);
         },
-        else => return error.TooManyArgs,
+        else => error.TooManyArgs,
     };
-    std.debug.print("Hello, {s}!\n", .{subject});
 }
